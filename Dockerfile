@@ -43,60 +43,33 @@ COPY --from=build /repo/packages/app/dist /usr/share/nginx/html
 # OpenAI-compatible base URL to https://<this host>/llm/v1.
 ENV LLM_UPSTREAM=https://gateway.ngrok.ai
 
-# /gh-api/ forwards to the GitHub API and adds GITHUB_TOKEN when the browser
-# sends no token. Viewers then need no token of their own. Set GITHUB_TOKEN as a
-# runtime secret. Do not set it in this file, because the image keeps it.
-# The ngrok OAuth policy is the only gate on this token: keep it read-only.
-# The nginx entrypoint runs this script first, and the container stops when
-# GITHUB_TOKEN is missing.
-RUN cat > /docker-entrypoint.d/05-require-github-token.sh <<'EOF' && chmod +x /docker-entrypoint.d/05-require-github-token.sh
-#!/bin/sh
-if [ -z "${GITHUB_TOKEN:-}" ]; then
-  echo "$0: GITHUB_TOKEN is not set. Set it as a runtime secret on the ngrok app." >&2
-  exit 1
-fi
-EOF
-
-# The nginx entrypoint replaces ${LLM_UPSTREAM} and ${GITHUB_TOKEN} and writes
-# conf.d/default.conf. Send unknown paths to index.html, so that client-side
-# routes load on refresh.
+# /gh-api/ forwards to the GitHub API. The ngrok traffic policy
+# (deploy/traffic-policy.yml) gates the site with GitHub OAuth and adds the
+# viewer's GitHub token in X-GitHub-OAuth-Token. nginx sends that token first.
+# When GitHub rejects it with 401, nginx sends the request again with the token
+# from the browser (set in Settings), or with no token.
+# The nginx entrypoint replaces ${LLM_UPSTREAM} and writes conf.d/default.conf.
+# Send unknown paths to index.html, so that client-side routes load on refresh.
 RUN mkdir -p /etc/nginx/templates && cat > /etc/nginx/templates/default.conf.template <<'EOF'
-# No Authorization header when GITHUB_TOKEN is empty: nginx does not send a
-# header with an empty value. Only the build-time `nginx -t` below sees an
-# empty token; at start, 05-require-github-token.sh stops the container.
-map "${GITHUB_TOKEN}" $gh_api_server_authorization {
-  ""      "";
-  default "Bearer ${GITHUB_TOKEN}";
-}
-
-# A token from the browser (set in Settings) wins over the server token.
-map $http_authorization $gh_api_authorization {
-  ""      $gh_api_server_authorization;
-  default $http_authorization;
-}
-
-# With the server token, allow only GET, HEAD, and POST to /graphql. GraphQL
-# mutations also use POST /graphql, so this does not make the proxy read-only.
-# Only a read-only GITHUB_TOKEN does that. A browser token can do all that it
-# permits.
-map "$http_authorization|$request_method|$uri" $gh_api_blocked {
-  default                        0;
-  "~^\|(GET|HEAD)\|"             0;
-  "~^\|POST\|/gh-api/graphql$"   0;
-  "~^\|"                         1;
+map $http_x_github_oauth_token $gh_api_authorization {
+  ""      $http_authorization;
+  default "Bearer $http_x_github_oauth_token";
 }
 
 server {
   listen 8080;
   root /usr/share/nginx/html;
 
+  proxy_ssl_server_name on;
+  proxy_ssl_verify on;
+  proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+  proxy_ssl_verify_depth 3;
+  proxy_http_version 1.1;
+
   location /llm/ {
     proxy_pass ${LLM_UPSTREAM}/;
-    proxy_ssl_server_name on;
-    proxy_ssl_verify on;
-    proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
-    proxy_ssl_verify_depth 3;
-    proxy_http_version 1.1;
+    # Do not send the GitHub token to the LLM gateway.
+    proxy_set_header X-GitHub-OAuth-Token "";
     # Stream the model output to the browser as it arrives.
     proxy_buffering off;
     proxy_read_timeout 300s;
@@ -106,22 +79,27 @@ server {
 
   location /gh-api/ {
     # The app sends this header on every call. A cross-site form cannot, so
-    # this stops CSRF that rides on the SSO cookie.
+    # this stops CSRF that rides on the OAuth session cookie.
     if ($http_x_github_api_version = "") {
-      return 403;
-    }
-    if ($gh_api_blocked) {
       return 403;
     }
     proxy_pass https://api.github.com/;
     proxy_set_header Authorization $gh_api_authorization;
+    proxy_set_header X-GitHub-OAuth-Token "";
     # Do not send the ngrok session cookie to GitHub.
     proxy_set_header Cookie "";
-    proxy_ssl_server_name on;
-    proxy_ssl_verify on;
-    proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
-    proxy_ssl_verify_depth 3;
-    proxy_http_version 1.1;
+    proxy_intercept_errors on;
+    error_page 401 = @gh_api_browser_token;
+  }
+
+  # The OAuth token is not valid: send the request again with the browser token.
+  # A named location cannot set a URI in proxy_pass, so rewrite removes /gh-api.
+  location @gh_api_browser_token {
+    rewrite ^/gh-api/(.*)$ /$1 break;
+    proxy_pass https://api.github.com;
+    proxy_set_header Authorization $http_authorization;
+    proxy_set_header X-GitHub-OAuth-Token "";
+    proxy_set_header Cookie "";
   }
 
   location / {
@@ -140,7 +118,7 @@ EOF
 
 # Render and test the config now, so that a bad config fails the build and
 # does not stop the container at start.
-RUN envsubst '${LLM_UPSTREAM} ${GITHUB_TOKEN}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf \
+RUN envsubst '${LLM_UPSTREAM}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf \
   && nginx -t
 
 EXPOSE 8080

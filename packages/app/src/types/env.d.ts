@@ -23,8 +23,9 @@ interface ImportMetaEnv {
   /** Short git sha the embed bundle was built from; only defined by `vite.config.embed.ts`. */
   readonly PR_EMBED_SHA: string | undefined
   /**
-   * GitHub API root for a deploy that proxies the API and adds a server-side token
-   * (the Dockerfile sets `/gh-api`). `api.github.com` when unset, as on Vercel.
+   * GitHub API root for a deploy that proxies the API and adds the viewer's
+   * GitHub OAuth token (the Dockerfile sets `/gh-api`). `api.github.com` when
+   * unset, as on Vercel.
    * The embed build ignores it.
    */
   readonly VITE_GITHUB_API_BASE: string | undefined
