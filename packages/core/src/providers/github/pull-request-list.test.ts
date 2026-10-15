@@ -79,6 +79,22 @@ describe('fetchOpenPullRequests without a token (REST search)', () => {
   })
 })
 
+describe('fetchOpenPullRequests through a proxy that adds a token', () => {
+  const proxied = createGithubClient({ githubToken: async () => undefined, githubApiBase: '/gh-api', githubApiAuthenticated: true })
+
+  it('uses REST when GraphQL rejects the call because the proxy has no token', async () => {
+    const fetchMock = vi.fn(async (url: string) => url === '/gh-api/graphql'
+      ? new Response(JSON.stringify({ message: 'Requires authentication' }), { status: 401 })
+      : jsonResponse({ total_count: 1, items: [restItem] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const page = await fetchOpenPullRequests(proxied, 'o', 'r')
+
+    expect(page.items.map(item => item.number)).toEqual([42])
+    expect(fetchMock.mock.calls.map(call => call[0])[0]).toBe('/gh-api/graphql')
+  })
+})
+
 describe('fetchOpenPullRequests with a token (GraphQL search)', () => {
   const node = {
     number: 7,

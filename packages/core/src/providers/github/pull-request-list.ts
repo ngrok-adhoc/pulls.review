@@ -1,6 +1,7 @@
 import type { ChecksStatus, PullRequestListItem, PullRequestListPage, ReviewDecision } from '../../types/pull-request-list'
 import type { GithubClient } from './client'
 import type { GithubUserJson } from './review-api'
+import { GithubApiError } from './client'
 
 const PAGE_SIZE = 100
 
@@ -12,9 +13,20 @@ const PAGE_SIZE = 100
  * the opaque `next` continuation (a page number for REST, a cursor for GraphQL).
  */
 export async function fetchOpenPullRequests(client: GithubClient, owner: string, repo: string, next?: string): Promise<PullRequestListPage> {
-  return await client.token()
-    ? fetchViaGraphql(client, owner, repo, next)
-    : fetchViaRest(client, owner, repo, next)
+  if (await client.token())
+    return fetchViaGraphql(client, owner, repo, next)
+  if (await client.authenticated()) {
+    // A proxy that adds its own token. It sends none when it has no token, and
+    // GraphQL then rejects the call with 401: use REST, as for anonymous viewers.
+    try {
+      return await fetchViaGraphql(client, owner, repo, next)
+    }
+    catch (err) {
+      if (!(err instanceof GithubApiError && err.status === 401))
+        throw err
+    }
+  }
+  return fetchViaRest(client, owner, repo, next)
 }
 
 function searchQuery(owner: string, repo: string): string {
