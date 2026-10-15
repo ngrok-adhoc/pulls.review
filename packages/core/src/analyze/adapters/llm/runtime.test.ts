@@ -13,6 +13,7 @@ const HEADERS = {
   'anthropic-version': '2023-06-01',
   'x-stainless-os': 'MacOS',
   'x-stainless-retry-count': '0',
+  'user-agent': 'pi-ai',
   'anthropic-dangerous-direct-browser-access': 'true',
 }
 
@@ -28,6 +29,7 @@ describe('createCorsSafeFetch', () => {
     const headers = sentHeaders('anthropic', HEADERS)
     expect(headers.get('anthropic-dangerous-direct-browser-access')).toBe('true')
     expect(headers.has('x-stainless-os')).toBe(false)
+    expect(headers.has('user-agent')).toBe(false)
     expect(headers.get('x-api-key')).toBe('key')
   })
 })

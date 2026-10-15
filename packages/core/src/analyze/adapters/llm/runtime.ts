@@ -8,13 +8,15 @@ import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completio
  * Browser CORS preflights fail on headers the endpoint does not allow-list: the SDKs'
  * x-stainless-* telemetry is rejected by the Vercel AI Gateway and most OpenAI-compatible
  * servers, and the gateway also rejects Anthropic's direct-browser-access opt-in.
+ * pi-ai sets a User-Agent, which Firefox sends and puts in the preflight, and most
+ * servers do not allow it either.
  */
 export function createCorsSafeFetch(provider: string): typeof fetch {
   const stripBrowserAccess = provider === 'vercel-ai-gateway'
   return (input, init) => {
     const headers = new Headers(init?.headers)
     for (const name of [...headers.keys()]) {
-      if (name.startsWith('x-stainless-') || (stripBrowserAccess && name === 'anthropic-dangerous-direct-browser-access'))
+      if (name.startsWith('x-stainless-') || name === 'user-agent' || (stripBrowserAccess && name === 'anthropic-dangerous-direct-browser-access'))
         headers.delete(name)
     }
     return fetch(input, { ...init, headers })
