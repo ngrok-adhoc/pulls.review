@@ -20,10 +20,8 @@ export interface GithubRequestOptions {
 
 /** Every GitHub REST and GraphQL call goes through one of these, bound to the viewer's token. */
 export interface GithubClient {
-  /** The token requests are sent with; `undefined` means none from the caller. */
+  /** The token requests are sent with; `undefined` means anonymous. */
   token: () => Promise<string | undefined>
-  /** Whether requests are authenticated, by the caller's token or by a proxy that adds one. */
-  authenticated: () => Promise<boolean>
   /** `path` is relative to the API root (`/repos/...`). Throws `GithubApiError` on a non-ok response. */
   request: (path: string, options?: GithubRequestOptions) => Promise<Response>
   /** Follows `per_page=100` pages until a short one comes back. */
@@ -34,7 +32,6 @@ export interface GithubClient {
 /** Without credentials every request is anonymous. The token is read per request, never captured. */
 export function createGithubClient(credentials?: Credentials): GithubClient {
   const token = async () => credentials?.githubToken()
-  const apiBase = credentials?.githubApiBase ?? GITHUB_API_BASE
 
   async function request(path: string, options: GithubRequestOptions = {}): Promise<Response> {
     const auth = await token()
@@ -46,7 +43,7 @@ export function createGithubClient(credentials?: Credentials): GithubClient {
       headers.Authorization = `Bearer ${auth}`
     if (options.body !== undefined)
       headers['Content-Type'] = 'application/json'
-    const url = `${apiBase}${path}`
+    const url = `${GITHUB_API_BASE}${path}`
     const res = await fetch(url, {
       method: options.method ?? 'GET',
       headers,
@@ -67,7 +64,6 @@ export function createGithubClient(credentials?: Credentials): GithubClient {
 
   return {
     token,
-    authenticated: async () => !!(await token()) || !!credentials?.githubApiAuthenticated,
     request,
     async paginate<T>(path: string) {
       const items: T[] = []

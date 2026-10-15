@@ -24,9 +24,6 @@ export const appContextKey: InjectionKey<AppContext> = Symbol('app-context')
 /** Read on every request, so a token saved in Settings applies without rebuilding a store. */
 export const settingsCredentials: Credentials = {
   githubToken: async () => settings.value.githubToken || undefined,
-  // The embed runs on github.com, where a same-origin proxy path does not exist.
-  githubApiBase: import.meta.env.PR_EMBED ? undefined : import.meta.env.VITE_GITHUB_API_BASE || undefined,
-  githubApiAuthenticated: !import.meta.env.PR_EMBED && !!import.meta.env.VITE_GITHUB_API_BASE,
 }
 
 export function installAppContext(app: App, context: AppContext = { cache: createBrowserCache(), credentials: settingsCredentials, llm: browserLlmRunner }): void {

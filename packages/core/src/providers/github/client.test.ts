@@ -23,21 +23,6 @@ describe('createGithubClient', () => {
     expect(anonymous!.has('Authorization')).toBe(false)
   })
 
-  it('sends requests to the credentials\' API base when set', async () => {
-    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => json({}))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await createGithubClient({ githubToken: async () => undefined, githubApiBase: '/gh-api' }).request('/graphql', { method: 'POST', body: {} })
-
-    expect(fetchMock.mock.calls[0]![0]).toBe('/gh-api/graphql')
-  })
-
-  it('is authenticated by a caller token or by a proxy that adds one', async () => {
-    expect(await createGithubClient().authenticated()).toBe(false)
-    expect(await createGithubClient(staticCredentials('tok')).authenticated()).toBe(true)
-    expect(await createGithubClient({ githubToken: async () => undefined, githubApiAuthenticated: true }).authenticated()).toBe(true)
-  })
-
   it('follows pages until a short one, appending to an existing query', async () => {
     const fetchMock = vi.fn(async (url: string) => json(url.endsWith('&page=1') ? Array.from({ length: 100 }, (_, i) => i) : [100]))
     vi.stubGlobal('fetch', fetchMock)

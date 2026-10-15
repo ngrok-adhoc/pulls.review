@@ -48,16 +48,6 @@ export function isListed(ref: SourceRef): boolean {
 /** Secrets a source may need, read on every use so a token saved later applies at once. */
 export interface Credentials {
   githubToken: () => Promise<string | undefined>
-  /**
-   * GitHub REST/GraphQL root, `https://api.github.com` when absent. A deploy that
-   * proxies the API and adds its own token sets this to the proxy path.
-   */
-  githubApiBase?: string
-  /**
-   * The API base adds its own token, so calls are authenticated with no token
-   * from `githubToken`. Turns on the read paths that need a token (GraphQL).
-   */
-  githubApiAuthenticated?: boolean
 }
 
 export function staticCredentials(githubToken?: string): Credentials {
