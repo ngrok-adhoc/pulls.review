@@ -5,8 +5,11 @@ import * as v from 'valibot'
 import { diagnostics } from '../../diagnostics'
 import { SharedAnalysisSchema } from '../../types/shared-analysis'
 
-/** Never `location.origin`: the comment is public, a preview host must not leak into it. */
-const SITE_ORIGIN = 'https://pulls.review'
+/**
+ * Never `location.origin`: the comment is public, a preview host must not leak into it.
+ * This fork links to its own deploy, not to the public site.
+ */
+const SITE_ORIGIN = 'https://ngrok-adhoc-pulls-review.ngrok.app'
 const MARKER = '<!-- pulls.review data -->'
 /** GitHub caps comment bodies at 65536 characters. */
 const MAX_BODY_LENGTH = 60_000
