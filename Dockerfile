@@ -18,13 +18,17 @@ RUN npm install -g pnpm@12.9.1 \
 WORKDIR /repo
 
 # Install dependencies first, so that source changes keep this layer cached.
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml skills-npm.config.ts ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/actions/package.json packages/actions/
 COPY packages/app/package.json packages/app/
 COPY packages/cli/package.json packages/cli/
 COPY packages/core/package.json packages/core/
+# Skip the root `prepare` script (skills-npm). It downloads agent skills from
+# GitHub, which the image does not need and which can fail on shared runners.
+# `pnpm rebuild` then runs the dependency build scripts that `allowBuilds` permits.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-  pnpm install --frozen-lockfile
+  pnpm install --frozen-lockfile --ignore-scripts \
+  && pnpm rebuild
 
 COPY . .
 RUN pnpm -F @pulls.review/app run build

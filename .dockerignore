@@ -7,8 +7,7 @@
 .vscode
 .DS_Store
 
-# Agent files: the build does not read them, and `pnpm install` (skills-npm)
-# writes skill directories that would collide with the `.claude` symlink.
+# Agent files: the build does not read them.
 .agents
 .claude
 .fx
