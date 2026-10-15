@@ -1,0 +1,21 @@
+# Keep .git: the embed build reads the commit SHA.
+**/node_modules
+**/dist
+**/*.log
+.env
+.idea
+.vscode
+.DS_Store
+
+# Agent files: the build does not read them, and `pnpm install` (skills-npm)
+# writes skill directories that would collide with the `.claude` symlink.
+.agents
+.claude
+.fx
+.goose
+plans
+packages/app/public/embed
+packages/app/public/assets/fonts
+packages/app/public/pulls-review-github.user.js
+packages/app/public/diffs-github.user.js
+packages/app/src/embed/.generated
