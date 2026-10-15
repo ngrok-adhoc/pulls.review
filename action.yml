@@ -20,15 +20,32 @@ inputs:
     description: Endpoint for `openai-compatible` providers.
   locale:
     description: BCP 47 tag the summaries are written in (default `en`).
-  version:
-    description: '`@pulls.review/actions` package version to run.'
-    default: latest
 
 runs:
   using: composite
   steps:
-    - shell: bash
-      run: npx -y @pulls.review/actions@${{ inputs.version }}
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+
+    # Build the CLI from this checkout of the action, not from the npm package,
+    # so that the run uses the same reviewed commit that the caller pins.
+    - name: Build pulls.review
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        npm install -g pnpm@12.9.1
+        # --ignore-scripts skips the root `prepare` script (skills-npm), which fails
+        # with "No agents detected" on a runner. `pnpm rebuild` then runs the
+        # dependency build scripts that `allowBuilds` permits.
+        pnpm install --frozen-lockfile --ignore-scripts --filter . --filter '@pulls.review/actions...'
+        pnpm rebuild
+        pnpm -F @pulls.review/core run build
+        pnpm -F @pulls.review/actions run build
+
+    - name: Analyze
+      shell: bash
+      run: node "${{ github.action_path }}/packages/actions/dist/index.mjs"
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         PULLS_REVIEW_PROVIDER: ${{ inputs.provider }}
