@@ -47,14 +47,23 @@ ENV LLM_UPSTREAM=https://gateway.ngrok.ai
 # sends no token. Viewers then need no token of their own. Set GITHUB_TOKEN as a
 # runtime secret. Do not set it in this file, because the image keeps it.
 # The ngrok OAuth policy is the only gate on this token: keep it read-only.
-ENV GITHUB_TOKEN=""
+# The nginx entrypoint runs this script first, and the container stops when
+# GITHUB_TOKEN is missing.
+RUN cat > /docker-entrypoint.d/05-require-github-token.sh <<'EOF' && chmod +x /docker-entrypoint.d/05-require-github-token.sh
+#!/bin/sh
+if [ -z "${GITHUB_TOKEN:-}" ]; then
+  echo "$0: GITHUB_TOKEN is not set. Set it as a runtime secret on the ngrok app." >&2
+  exit 1
+fi
+EOF
 
 # The nginx entrypoint replaces ${LLM_UPSTREAM} and ${GITHUB_TOKEN} and writes
 # conf.d/default.conf. Send unknown paths to index.html, so that client-side
 # routes load on refresh.
 RUN mkdir -p /etc/nginx/templates && cat > /etc/nginx/templates/default.conf.template <<'EOF'
 # No Authorization header when GITHUB_TOKEN is empty: nginx does not send a
-# header with an empty value, so requests stay anonymous.
+# header with an empty value. Only the build-time `nginx -t` below sees an
+# empty token; at start, 05-require-github-token.sh stops the container.
 map "${GITHUB_TOKEN}" $gh_api_server_authorization {
   ""      "";
   default "Bearer ${GITHUB_TOKEN}";
