@@ -11,6 +11,8 @@ export default antfu(
       'packages/app/src/components/diff/pierre-diffs-core.css',
       'packages/app/test/fixtures/real/**',
       '**/__snapshots__/**',
+      // Generated and kept up to date by ngrok ship.
+      '.github/workflows/ngrok-ship-*.yml',
     ],
     vue: {
       overrides: {
